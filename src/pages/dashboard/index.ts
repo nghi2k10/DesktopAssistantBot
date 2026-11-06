@@ -4,6 +4,7 @@ import {
   NavigationPage,
   QuickLaunchTarget
 } from '../../types.js';
+import { getDayDetails, getVietnamToday } from '../../utils/lunar-calendar.js';
 
 export interface DashboardCallbacks {
   onQuickLaunch: (target: QuickLaunchTarget) => void;
@@ -22,7 +23,30 @@ export class DashboardPage {
   }
 
   public render(state: InitialAppState): void {
-    const { appName, appVersion, displayHotkey, systemInfo, launcherItems } = state;
+    const {
+      appName,
+      appVersion,
+      displayHotkey,
+      systemInfo,
+      launcherItems,
+      taskStats,
+      notes,
+      reminders,
+      lunarReminders
+    } = state;
+
+    const vnToday = getVietnamToday();
+    const todayDetails = getDayDetails(
+      vnToday.day,
+      vnToday.month,
+      vnToday.year,
+      true,
+      vnToday.isoDate
+    );
+
+    const activeRemindersCount =
+      reminders.filter((r) => r.is_enabled && !r.is_completed).length +
+      lunarReminders.filter((lr) => lr.is_enabled).length;
 
     this.container.innerHTML = `
       <div class="dashboard-grid">
@@ -63,6 +87,39 @@ export class DashboardPage {
               Configure Hotkey
             </button>
           </div>
+        </section>
+
+        <!-- Phase 2 Personal Productivity Summary Strip -->
+        <section class="todo-stats-grid">
+          <button type="button" class="card stat-box stat-box-clickable" data-dash-nav="todo">
+            <span class="stat-box-label">Todo Tasks</span>
+            <strong class="stat-box-value">${taskStats.completed}/${taskStats.total} Done (${taskStats.completionPercentage}%)</strong>
+            <span class="stat-box-sub">${taskStats.pending} pending • ${taskStats.overdue} overdue</span>
+          </button>
+
+          <button type="button" class="card stat-box stat-box-clickable" data-dash-nav="notes">
+            <span class="stat-box-label">Quick Notes</span>
+            <strong class="stat-box-value text-blue">${notes.length} Saved</strong>
+            <span class="stat-box-sub">${notes.filter((n) => n.is_pinned).length} pinned notes</span>
+          </button>
+
+          <button type="button" class="card stat-box stat-box-clickable" data-dash-nav="reminders">
+            <span class="stat-box-label">Active Reminders</span>
+            <strong class="stat-box-value text-purple">${activeRemindersCount} Scheduled</strong>
+            <span class="stat-box-sub">${lunarReminders.length} Lunar • ${reminders.length} Solar</span>
+          </button>
+
+          <button type="button" class="card stat-box stat-box-clickable" data-dash-nav="calendar">
+            <span class="stat-box-label">Today's Lunar Date (UTC+7)</span>
+            <strong class="stat-box-value text-emerald">
+              ${todayDetails.lunar.day}/${todayDetails.lunar.month}/${todayDetails.lunar.year}${
+      todayDetails.lunar.isLeapMonth ? ' (Nhuận)' : ''
+    }
+            </strong>
+            <span class="stat-box-sub">Ngày ${this.escapeHtml(todayDetails.canChi.dayCanChi)} • ${this.escapeHtml(
+      todayDetails.auspicious.status
+    )}</span>
+          </button>
         </section>
 
         <!-- System Status Summary -->
@@ -165,16 +222,16 @@ export class DashboardPage {
                 <div>
                   <div class="control-title-row">
                     <h4 class="control-title">Shutdown / Restart</h4>
-                    <span class="badge badge-muted">Phase 2</span>
+                    <span class="badge badge-muted">Disabled</span>
                   </div>
-                  <p class="control-desc">Power state actions are intentionally disabled in Phase 1 for safety</p>
+                  <p class="control-desc">Power state actions are disabled for workstation safety</p>
                 </div>
               </div>
               <div class="control-card-footer split-buttons">
-                <button type="button" class="btn btn-disabled" disabled title="Disabled in Phase 1">
+                <button type="button" class="btn btn-disabled" disabled title="Disabled">
                   Shutdown PC
                 </button>
-                <button type="button" class="btn btn-disabled" disabled title="Disabled in Phase 1">
+                <button type="button" class="btn btn-disabled" disabled title="Disabled">
                   Restart PC
                 </button>
               </div>
@@ -211,6 +268,16 @@ export class DashboardPage {
         const target = btn.getAttribute('data-quick-launch') as QuickLaunchTarget | null;
         if (target) {
           this.callbacks.onQuickLaunch(target);
+        }
+      });
+    });
+
+    const dashNavButtons = this.container.querySelectorAll<HTMLButtonElement>('[data-dash-nav]');
+    dashNavButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const page = btn.getAttribute('data-dash-nav') as NavigationPage | null;
+        if (page) {
+          this.callbacks.onNavigate(page);
         }
       });
     });

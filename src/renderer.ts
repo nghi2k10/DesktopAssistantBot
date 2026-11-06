@@ -1,8 +1,13 @@
 import { SidebarComponent } from './components/sidebar.js';
 import { toast } from './components/toast.js';
+import { AutomationPage } from './pages/automation/index.js';
+import { CalendarPage } from './pages/calendar/index.js';
 import { DashboardPage } from './pages/dashboard/index.js';
 import { LauncherPage } from './pages/launcher/index.js';
+import { NotesPage } from './pages/notes/index.js';
+import { RemindersPage } from './pages/reminders/index.js';
 import { SettingsPage } from './pages/settings/index.js';
+import { TodoPage } from './pages/todo/index.js';
 import { ipcService } from './services/ipc.js';
 import {
   InitialAppState,
@@ -16,6 +21,11 @@ class DesktopAssistantRenderer {
   private sidebar: SidebarComponent | null = null;
   private dashboardPage: DashboardPage | null = null;
   private launcherPage: LauncherPage | null = null;
+  private todoPage: TodoPage | null = null;
+  private notesPage: NotesPage | null = null;
+  private remindersPage: RemindersPage | null = null;
+  private calendarPage: CalendarPage | null = null;
+  private automationPage: AutomationPage | null = null;
   private settingsPage: SettingsPage | null = null;
 
   public async init(): Promise<void> {
@@ -33,19 +43,48 @@ class DesktopAssistantRenderer {
 
     const dashboardContainer = document.getElementById('page-dashboard');
     const launcherContainer = document.getElementById('page-launcher');
+    const todoContainer = document.getElementById('page-todo');
+    const notesContainer = document.getElementById('page-notes');
+    const remindersContainer = document.getElementById('page-reminders');
+    const calendarContainer = document.getElementById('page-calendar');
+    const automationContainer = document.getElementById('page-automation');
     const settingsContainer = document.getElementById('page-settings');
 
-    if (!dashboardContainer || !launcherContainer || !settingsContainer) {
+    if (
+      !dashboardContainer ||
+      !launcherContainer ||
+      !todoContainer ||
+      !notesContainer ||
+      !remindersContainer ||
+      !calendarContainer ||
+      !automationContainer ||
+      !settingsContainer
+    ) {
       return;
     }
 
     this.sidebar = new SidebarComponent({
-      onNavigate: (page) => this.navigateTo(page),
+      onNavigate: (page) => {
+        this.navigateTo(page);
+      },
       onHideToTray: () => this.handleHideToTray(),
       onExitApp: () => this.handleExitApp()
     });
     this.sidebar.init();
     this.sidebar.updateHotkeyBadge(this.state.displayHotkey);
+
+    const syncDashboardStats = async () => {
+      try {
+        const fresh = await ipcService.getInitialState();
+        this.state = fresh;
+        this.dashboardPage?.render(fresh);
+        this.todoPage?.setData(fresh.tasks, fresh.taskCategories, fresh.taskStats);
+        this.notesPage?.setData(fresh.notes);
+        this.remindersPage?.setData(fresh.reminders, fresh.lunarReminders, fresh.reminderHistory);
+      } catch {
+        // Ignore refresh error
+      }
+    };
 
     this.dashboardPage = new DashboardPage(dashboardContainer, {
       onQuickLaunch: (target) => this.handleQuickLaunch(target),
@@ -61,6 +100,18 @@ class DesktopAssistantRenderer {
       onQuickLaunch: (target) => this.handleQuickLaunch(target)
     });
 
+    this.todoPage = new TodoPage(todoContainer, syncDashboardStats);
+    this.notesPage = new NotesPage(notesContainer, syncDashboardStats);
+    this.remindersPage = new RemindersPage(remindersContainer, syncDashboardStats);
+    this.calendarPage = new CalendarPage(calendarContainer, {
+      onCreateLunarReminderForDate: (lunarDay, lunarMonth) => {
+        this.sidebar?.setActivePage('reminders');
+        this.navigateTo('reminders');
+        this.remindersPage?.openCreateLunarReminderWithDate(lunarDay, lunarMonth);
+      }
+    });
+    this.automationPage = new AutomationPage(automationContainer, syncDashboardStats);
+
     this.settingsPage = new SettingsPage(settingsContainer, {
       onThemeChange: (theme) => this.handleThemeChange(theme),
       onUpdateHotkey: (rawShortcut) => this.handleUpdateHotkey(rawShortcut),
@@ -71,6 +122,15 @@ class DesktopAssistantRenderer {
     // Render all pages with initial state
     this.dashboardPage.render(this.state);
     this.launcherPage.render(this.state.launcherItems);
+    this.todoPage.setData(this.state.tasks, this.state.taskCategories, this.state.taskStats);
+    this.notesPage.setData(this.state.notes);
+    this.remindersPage.setData(
+      this.state.reminders,
+      this.state.lunarReminders,
+      this.state.reminderHistory
+    );
+    this.calendarPage.render();
+    await this.automationPage.refresh();
     this.settingsPage.render(this.state);
 
     this.bindHeaderAndModalEvents();
@@ -87,9 +147,31 @@ class DesktopAssistantRenderer {
       this.settingsPage?.updateHotkeyUI(displayHotkey);
     });
 
-    // Expose helper for automated smoke test verification
+    // Subscribe to live reminder notifications
+    ipcService.onReminderTriggered(async (payload) => {
+      const prefix = payload.wasMissed ? '[Missed Reminder]' : '[Reminder]';
+      toast.show(`${prefix} ${payload.title}`, 'info', 5500);
+      await this.remindersPage?.refresh();
+    });
+
+    ipcService.onOpenReminder(async ({ source, reminderId }) => {
+      this.sidebar?.setActivePage('reminders');
+      await this.navigateTo('reminders');
+      await this.remindersPage?.highlightReminder(source, reminderId);
+    });
+
+    ipcService.onAutomationStateChanged(async () => {
+      await this.automationPage?.refresh();
+      await syncDashboardStats();
+    });
+
+    // Expose helpers for automated smoke test verification
     window.__testSetTheme = async (theme: ThemeMode) => {
       await this.handleThemeChange(theme);
+    };
+    window.__testNavigate = async (page: NavigationPage) => {
+      this.sidebar?.setActivePage(page);
+      await this.navigateTo(page);
     };
   }
 
@@ -118,17 +200,47 @@ class DesktopAssistantRenderer {
     });
   }
 
-  private navigateTo(page: NavigationPage): void {
+  private async navigateTo(page: NavigationPage): Promise<void> {
+    // Prevent data loss when leaving Quick Notes page
+    if (this.notesPage) {
+      await this.notesPage.flushPendingSave();
+    }
+
     const pages: Record<NavigationPage, { elId: string; title: string; subtitle: string }> = {
       dashboard: {
         elId: 'page-dashboard',
         title: 'Dashboard',
-        subtitle: 'System status, quick actions, and Windows workstation controls'
+        subtitle: 'System status, productivity summary, quick actions, and Windows controls'
       },
       launcher: {
         elId: 'page-launcher',
         title: 'Quick Launcher',
         subtitle: 'Direct access to Windows user directories and core desktop tools'
+      },
+      todo: {
+        elId: 'page-todo',
+        title: 'Todo List',
+        subtitle: 'Offline task management with status workflow, priorities, categories, and due dates'
+      },
+      notes: {
+        elId: 'page-notes',
+        title: 'Quick Notes',
+        subtitle: 'Color-coded notes with instant search, pinning, and automatic SQLite saving'
+      },
+      reminders: {
+        elId: 'page-reminders',
+        title: 'Reminders',
+        subtitle: 'Solar & Vietnamese Lunar desktop reminders with background System Tray scheduling'
+      },
+      calendar: {
+        elId: 'page-calendar',
+        title: 'Lunar / Solar Calendar',
+        subtitle: 'Vietnamese Lunar Calendar (Hồ Ngọc Đức UTC+7), Can Chi, Hoàng Đạo, and converter'
+      },
+      automation: {
+        elId: 'page-automation',
+        title: 'Auto Task Bot',
+        subtitle: 'Local offline workflow automation engine — Triggers, Conditions, Actions, and Execution Logs'
       },
       settings: {
         elId: 'page-settings',
@@ -136,6 +248,10 @@ class DesktopAssistantRenderer {
         subtitle: 'Personalize appearance, global hotkey, startup behavior, and local SQLite storage'
       }
     };
+
+    if (page === 'automation') {
+      await this.automationPage?.refresh();
+    }
 
     (Object.keys(pages) as NavigationPage[]).forEach((key) => {
       const el = document.getElementById(pages[key].elId);
@@ -255,7 +371,7 @@ class DesktopAssistantRenderer {
           </div>
           <div class="modal-kv">
             <span>Application Version</span>
-            <strong>v${this.escapeHtml(systemInfo.appVersion)} (Phase 1)</strong>
+            <strong>v${this.escapeHtml(systemInfo.appVersion)} (Phase 2)</strong>
           </div>
           <div class="modal-kv">
             <span>Operation Mode</span>
@@ -308,10 +424,16 @@ class DesktopAssistantRenderer {
   }
 
   private async handleHideToTray(): Promise<void> {
+    if (this.notesPage) {
+      await this.notesPage.flushPendingSave();
+    }
     await ipcService.hideWindow();
   }
 
   private async handleExitApp(): Promise<void> {
+    if (this.notesPage) {
+      await this.notesPage.flushPendingSave();
+    }
     await ipcService.exitApplication();
   }
 

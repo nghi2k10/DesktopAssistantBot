@@ -23,7 +23,7 @@
         </div>
         <div class="brand-text">
           <span class="brand-name">Assistant Bot</span>
-          <span class="brand-tag">Offline • Phase 1</span>
+          <span class="brand-tag">Offline • Phase 3</span>
         </div>
       </div>
 
@@ -36,6 +36,31 @@
         <button type="button" class="nav-item" data-nav-page="launcher">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
           <span>Quick Launcher</span>
+        </button>
+
+        <button type="button" class="nav-item" data-nav-page="todo">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+          <span>Todo List</span>
+        </button>
+
+        <button type="button" class="nav-item" data-nav-page="notes">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          <span>Quick Notes</span>
+        </button>
+
+        <button type="button" class="nav-item" data-nav-page="reminders">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span>Reminders</span>
+        </button>
+
+        <button type="button" class="nav-item" data-nav-page="calendar">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span>Calendar</span>
+        </button>
+
+        <button type="button" class="nav-item" data-nav-page="automation">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="6" height="6" rx="1"/><rect x="16" y="3" width="6" height="6" rx="1"/><rect x="16" y="15" width="6" height="6" rx="1"/><path d="M8 10h4a2 2 0 0 1 2 2v6h2"/><path d="M14 10V6h2"/></svg>
+          <span>Auto Task Bot</span>
         </button>
 
         <button type="button" class="nav-item" data-nav-page="settings">
@@ -86,6 +111,11 @@
       <main class="content-scroll">
         <div id="page-dashboard" class="page-view"></div>
         <div id="page-launcher" class="page-view hidden"></div>
+        <div id="page-todo" class="page-view hidden"></div>
+        <div id="page-notes" class="page-view hidden"></div>
+        <div id="page-reminders" class="page-view hidden"></div>
+        <div id="page-calendar" class="page-view hidden"></div>
+        <div id="page-automation" class="page-view hidden"></div>
         <div id="page-settings" class="page-view hidden"></div>
       </main>
     </div>
@@ -99,6 +129,22 @@
         <button type="button" id="app-info-modal-close" class="btn-icon" aria-label="Close modal">&times;</button>
       </div>
       <div id="app-info-modal-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <!-- Confirmation Modal Dialog -->
+  <div id="confirm-dialog-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+    <div class="modal-dialog modal-dialog-sm card">
+      <div class="modal-header">
+        <h3 id="confirm-dialog-title">Confirm Action</h3>
+      </div>
+      <div class="modal-body">
+        <p id="confirm-dialog-message" class="confirm-dialog-text"></p>
+        <div class="modal-footer-actions">
+          <button type="button" id="confirm-dialog-cancel" class="btn btn-ghost">Cancel</button>
+          <button type="button" id="confirm-dialog-ok" class="btn btn-danger">Confirm</button>
+        </div>
+      </div>
     </div>
   </div>
 

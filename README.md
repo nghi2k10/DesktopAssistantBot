@@ -1,6 +1,6 @@
-# Desktop Assistant Bot – Phase 1
+# Desktop Assistant Bot – Phase 1, Phase 2 & Phase 3
 
-An offline-first personal Windows desktop productivity assistant built with **Electron**, **TypeScript**, **Node.js**, and **SQLite (`better-sqlite3`)**.
+An offline-first personal Windows desktop productivity and workflow automation assistant built with **Electron**, **TypeScript**, **Node.js**, and **SQLite (`better-sqlite3`)**.
 
 ---
 
@@ -12,7 +12,7 @@ An offline-first personal Windows desktop productivity assistant built with **El
 - **100% Offline-First**: Works completely without an Internet connection at runtime.
 - **No AI / No Cloud**: Zero integration with ChatGPT, Gemini, or any external cloud APIs.
 - **No Accounts or Telemetry**: No authentication, no remote databases, no analytics or tracking.
-- **Local SQLite Persistence**: All settings are persisted in a local SQLite database (`%APPDATA%\desktop-assistant-bot\desktop-assistant-bot.db`).
+- **Local SQLite Persistence**: All settings, tasks, notes, reminders, lunar reminders, automation workflows, execution logs, and action logs are persisted locally in SQLite (`%APPDATA%\desktop-assistant-bot\desktop-assistant-bot.db`).
 
 ---
 
@@ -20,12 +20,12 @@ An offline-first personal Windows desktop productivity assistant built with **El
 
 | Component | Technology |
 |---|---|
-| Desktop Framework | Electron (`^34.2.0`) |
+| Desktop Framework | Electron (`33.3.1`) |
 | Language | TypeScript (`^5.7.2`) |
 | Runtime | Node.js |
 | Frontend UI | Semantic HTML5, Modern CSS3 (Dark & Light Fluent Themes), TypeScript |
-| Local Database | SQLite (`better-sqlite3` `^11.8.1`) |
-| Windows Integration | Electron `shell`, `globalShortcut`, `Tray`, Login Items API, and native Windows `user32.dll` (`LockWorkStation`) |
+| Local Database | SQLite (`better-sqlite3` `^11.8.1`, WAL Mode) |
+| Windows Integration | Electron `shell`, `globalShortcut`, `Tray`, `Notification`, Login Items API, Node `fs.watch`, `child_process.spawn` (`shell: false`), and native Windows `user32.dll` (`LockWorkStation`) |
 | Packaging & Installer | `electron-builder` (`^25.1.8`) – Windows NSIS `.exe` installer |
 
 ---
@@ -35,125 +35,129 @@ An offline-first personal Windows desktop productivity assistant built with **El
 ```text
 desktop-assistant-bot/
 ├── electron/
-│   ├── main.ts                # Electron Main Process lifecycle, BrowserWindow & IPC handlers
-│   ├── preload.ts             # Context-isolated preload script exposing window.assistantApi
-│   ├── tray.ts                # Windows System Tray icon, tooltip, context menu & double-click
-│   ├── shortcut.ts            # Global hotkey registration, validation & conflict rollback
-│   ├── windows.ts             # Windows directories, Notepad launcher, LockWorkStation & login items
-│   └── storage.ts             # Local SQLite database service using better-sqlite3 (WAL mode)
+│   ├── main.ts                          # Electron Main Process lifecycle, BrowserWindow, IPC & 33 Smoke Tests
+│   ├── preload.ts                       # Context-isolated preload script exposing window.assistantApi
+│   ├── tray.ts                          # Windows System Tray icon, tooltip, context menu & double-click
+│   ├── shortcut.ts                      # Global hotkey registration, validation & conflict rollback
+│   ├── windows.ts                       # Windows directories, Notepad launcher, LockWorkStation & login items
+│   ├── storage.ts                       # Local SQLite database service with versioned migrations (v1..v3)
+│   ├── services/
+│   │   ├── lunar-calendar.ts            # Hồ Ngọc Đức Vietnamese Lunar Calendar engine (UTC+7)
+│   │   └── reminder-scheduler.ts        # Background reminder scheduler & Electron Notification service
+│   └── automation/                      # Phase 3 Auto Task Bot & Workflow Automation Engine
+│       ├── types.ts                     # Trigger, Condition, Action, Policy & Log TypeScript interfaces
+│       ├── security/path-validator.ts   # Local path traversal guard, Trusted Exe allowlist & Safe URL validator
+│       ├── conditions/condition-engine.ts # AND/OR group evaluator for Time, File, Todo & Workflow rules
+│       ├── actions/action-registry.ts   # 20 Action executors (App, File, Notification, Todo, Notes, Reminder, Flow)
+│       ├── triggers/trigger-manager.ts  # Schedule, Global Hotkey, Startup & File Watcher triggers
+│       └── engine/workflow-engine.ts    # Sequential execution, retry, timeout, cancellation & JSON import/export
 ├── src/
-│   ├── index.html             # Main application shell with strict Content Security Policy
-│   ├── renderer.ts            # Renderer entry point coordinating state, pages, modal & events
-│   ├── types.ts               # Shared TypeScript interfaces
+│   ├── index.html                       # Main application shell with strict Content Security Policy
+│   ├── renderer.ts                      # Renderer coordinator (8 navigation views, modals, IPC events)
+│   ├── types.ts                         # Shared TypeScript interfaces
 │   ├── styles/
-│   │   └── main.css           # Dark Mode & Light Mode Fluent desktop styling
+│   │   └── main.css                     # Dark Mode & Light Mode Fluent desktop styling
 │   ├── components/
-│   │   ├── sidebar.ts         # Sidebar navigation & tray controls
-│   │   └── toast.ts           # Toast notification manager
+│   │   ├── sidebar.ts                   # Sidebar navigation & tray controls
+│   │   ├── toast.ts                     # Toast notification manager
+│   │   └── confirm-dialog.ts            # Confirmation modal for destructive actions
 │   ├── pages/
-│   │   ├── dashboard/
-│   │   │   └── index.ts       # Dashboard view (status, quick actions, Windows controls)
-│   │   ├── launcher/
-│   │   │   └── index.ts       # Quick Launcher view with category & search filters
-│   │   └── settings/
-│   │       └── index.ts       # Settings view (theme, hotkey recorder, startup, live SQLite view)
-│   └── services/
-│       └── ipc.ts             # Renderer IPC client wrapper
+│   │   ├── dashboard/index.ts           # Dashboard view (status, productivity summary, quick actions)
+│   │   ├── launcher/index.ts            # Quick Launcher view with category & search filters
+│   │   ├── todo/index.ts                # Module 1: Todo List (CRUD, status, priority, categories, stats)
+│   │   ├── notes/index.ts               # Module 2: Quick Notes (autosave, pin, colors, search, copy)
+│   │   ├── reminders/index.ts           # Module 3: Solar & Lunar Reminders + Notification History
+│   │   ├── calendar/index.ts            # Module 4: Vietnamese Lunar/Solar Calendar & Converter
+│   │   ├── automation/index.ts          # Phase 3: Auto Task Bot (Dashboard, My Automations, Builder, History, Settings)
+│   │   └── settings/index.ts            # Settings view (theme, hotkey recorder, startup, live SQLite view)
+│   ├── services/
+│   │   └── ipc.ts                       # Renderer IPC client wrapper
+│   └── utils/
+│       └── lunar-calendar.ts            # Renderer Vietnamese Lunar Calendar utility
 ├── database/
 │   └── migrations/
-│       └── 001_initial_schema.sql
+│       ├── 001_initial_schema.sql              # Phase 1 settings schema
+│       ├── 002_phase2_productivity_schema.sql  # Phase 2 tasks, categories, notes, reminders, lunar_reminders
+│       └── 003_phase3_automation_schema.sql    # Phase 3 automations, executions, action_logs, automation_settings
 ├── assets/
 │   └── icons/
-│       ├── icon.ico           # Multi-resolution Windows icon (256x256, 64x64, 32x32, 16x16)
-│       ├── icon.png           # 256x256 PNG application icon
-│       └── tray.png           # 32x32 PNG system tray icon
+│       ├── icon.ico                     # Multi-resolution Windows icon (256x256, 64x64, 32x32, 16x16)
+│       ├── icon.png                     # 256x256 PNG application icon
+│       └── tray.png                     # 32x32 PNG system tray icon
 ├── scripts/
-│   ├── generate-icons.js      # Generates application & tray icons
-│   └── copy-assets.js         # Copies HTML & CSS assets into dist/src/
-├── package.json
-├── tsconfig.json
-├── tsconfig.main.json
-├── tsconfig.renderer.json
+│   ├── ensure-native.js                 # Verifies Electron & better-sqlite3 native binaries
+│   ├── generate-icons.js                # Generates application & tray icons
+│   └── copy-assets.js                   # Copies HTML & CSS assets into dist/src/
 └── README.md
 ```
 
 ---
 
-## 4. Phase 1 Features
+## 4. Phase 3 – Auto Task Bot & Workflow Automation Engine
 
-### 4.1 Dashboard
-- Displays application name, version (`v1.0.0`), offline readiness badge, and active global hotkey.
-- Displays Windows platform architecture, OS release, and system memory metrics.
-- Provides 1-click **Quick Actions** and **Windows Controls**.
+The **Auto Task Bot** module allows you to build, schedule, trigger, and monitor multi-step local workflows on Windows:
 
-### 4.2 System Tray Integration
-- Runs in the Windows System Tray with a custom icon and dynamic tooltip showing the active hotkey.
-- Context menu commands:
-  - **Open Assistant**
-  - **Hide Assistant**
-  - **Exit Application**
-- **Double-clicking** the tray icon opens and focuses the assistant.
-- Clicking the window close button (`X`) **hides the window to the System Tray** without terminating the application.
+$$\text{Trigger} \longrightarrow \text{Conditions (AND / OR)} \longrightarrow \text{Sequential Actions} \longrightarrow \text{Execution \& Step Logs}$$
 
-### 4.3 Global Hotkey (`Ctrl + Shift + Space`)
-- Toggles window visibility from anywhere in Windows:
-  - Shows and focuses the window if hidden.
-  - Restores and brings the window to the foreground if minimized.
-  - Hides the window if currently visible.
-- Configurable in **Settings** via an interactive key recorder or manual input.
-- Validates accelerators and automatically restores the previous working shortcut if registration fails or conflicts with another application.
+### 4.1 Supported Triggers
+1. **Schedule Trigger**:
+   - Frequencies: `once`, `daily`, `weekly` (selected weekdays `Sun..Sat`), `monthly` (day of month `1..31`), `yearly` (month + day).
+   - Supports `startDate`, optional `endDate`, and configurable **Missed Schedule Policy** (`run_once`, `skip`, or `ask_user`) when the application starts after being closed.
+2. **Global Hotkey Trigger**:
+   - Registers custom global shortcuts (e.g. `CommandOrControl+Alt+T`).
+   - Automatically prevents conflicts with the main Assistant toggle shortcut (`Ctrl + Shift + Space`) and other enabled workflows.
+3. **Application Startup Trigger**:
+   - Runs automatically when Desktop Assistant Bot starts, with configurable `delaySeconds` and `oncePerSession` guard.
+4. **File / Folder Watcher Trigger**:
+   - Monitors local folders using `fs.watch` with snapshot diffing to detect `created`, `changed`, `deleted`, and `renamed` events.
+   - Supports wildcard `fileNamePattern` (e.g. `*.pdf`), `extensionFilter` (e.g. `.pdf,.txt`), and configurable debounce (`debounceMs`).
 
-### 4.4 Quick Launcher
-Opens native Windows user folders and tools safely via whitelisted Main Process targets:
-- **Desktop Folder** (`app.getPath('desktop')`)
-- **Downloads Folder** (`app.getPath('downloads')`)
-- **Documents Folder** (`app.getPath('documents')`)
-- **Pictures Folder** (`app.getPath('pictures')`)
-- **User Home Directory** (`app.getPath('home')`)
-- **Windows Notepad** (`C:\Windows\System32\notepad.exe`)
+### 4.2 Supported Condition Rules (`AND` / `OR`)
+- **Time Conditions**: `time_hour`, `time_weekday`, `time_date`, `time_date_range`
+- **File Conditions**: `file_exists`, `file_not_exists`, `file_extension`, `file_size`
+- **Todo Conditions**: `todo_incomplete_count`, `todo_overdue_count`, `todo_completed`
+- **Workflow Conditions**: `workflow_enabled`, `workflow_last_status`, `workflow_is_running`
+- **Operators**: `equals`, `not_equals`, `greater_than`, `less_than`, `contains`, `exists`
 
-### 4.5 Windows Controls
-- **Lock Workstation**: Invokes native Windows `rundll32.exe user32.dll,LockWorkStation` without shell interpolation.
-- **Display Application Information**: Opens a diagnostic modal inspecting Electron/Node/Chromium versions, OS release, user data path, and SQLite database location.
-- **Shutdown / Restart**: Intentionally disabled in Phase 1 per specification.
+### 4.3 Supported Actions (20 Action Types)
+- **Application Actions**: `open_application` (validated against the **Trusted Application Paths** allowlist), `open_folder`, `open_url` (`http:` / `https:` only).
+- **Notification Action**: `show_notification` (Windows desktop notification).
+- **Todo List Actions**: `create_todo`, `update_todo_status`, `complete_todo`.
+- **Quick Notes Actions**: `create_note`, `update_note`, `pin_note`.
+- **Reminder Actions**: `create_reminder`, `enable_reminder`, `disable_reminder`.
+- **File System Actions**: `copy_file`, `move_file`, `rename_file`, `create_folder` (with explicit `overwrite` protection so files are never overwritten silently).
+- **Flow Control Actions**: `delay` (abortable wait), `stop_workflow` (clean early exit), `if_else` (conditional branching).
 
-### 4.6 Settings & SQLite Persistence
-- **Dark Mode & Light Mode** with instant switching and SQLite persistence.
-- **Global Hotkey Configuration** with live key recorder and reset-to-default button.
-- **Start with Windows** toggle (`app.setLoginItemSettings` + SQLite persistence).
-- **Live SQLite `settings` Table Inspector** displaying persisted rows (`id`, `key`, `value`, `updated_at`).
-
----
-
-## 5. Security Architecture
-
-- `contextIsolation: true`
-- `nodeIntegration: false`
-- `sandbox: true`
-- Strict Content Security Policy (`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none';`)
-- Preload script (`electron/preload.ts`) exposes only explicitly whitelisted IPC channels via `contextBridge`.
-- All IPC arguments are validated in both preload and main processes; arbitrary shell command execution from the renderer is impossible.
+### 4.4 Example Workflows
+1. **Morning Productivity Routine** (*Schedule: Weekdays at 08:00*):
+   - Condition: `todo_incomplete_count < 50`
+   - Action 1: Create high-priority Todo `"Review daily priorities & calendar"` due in 4 hours.
+   - Action 2: Create pinned Quick Note `"Daily Scratchpad"`.
+   - Action 3: Show desktop notification `"Good Morning! Daily task and scratchpad note are ready."`
+2. **Quick Focus Snapshot** (*Hotkey: `Ctrl + Alt + T`*):
+   - Action 1: Create urgent Todo `"Quick Follow-up Item"` (`in_progress`).
+   - Action 2: Create Reminder `"Check Quick Follow-up Item"` 30 minutes from trigger time.
+3. **Downloads Document Organizer** (*File Watcher on `C:\Users\<User>\Downloads` for `.pdf` creation*):
+   - Condition: `file_exists`
+   - Action 1: Create folder `C:\Users\<User>\Documents\PDF_Inbox`.
+   - Action 2: Copy/Move file to `PDF_Inbox` (with `overwrite: false`).
+   - Action 3: Show desktop notification.
 
 ---
 
-## 6. Installation & Usage Instructions
-
-### Prerequisites
-- Windows 10 or Windows 11 (x64)
-- Node.js `v18+` (tested on Node.js `v24.21.0`) and `npm`
+## 5. Installation, Execution & Packaging
 
 ### Install Dependencies
 ```powershell
 npm install
 ```
-*(Note: `postinstall` automatically runs `electron-builder install-app-deps` to ensure `better-sqlite3` is compiled/configured for the installed Electron ABI.)*
 
 ### Run in Development Mode
 ```powershell
 npm run start
 ```
 
-### Run Automated Smoke Verification Suite
+### Run Automated Smoke & Regression Test Suite (33 Test Suites)
 ```powershell
 npm run test:smoke
 ```
@@ -162,12 +166,6 @@ npm run test:smoke
 ```powershell
 npm run dist
 ```
-The compiled Windows NSIS installer and unpacked production application will be generated in the `release/` or `dist/` output directory (`dist/Desktop Assistant Bot Setup 1.0.0.exe` and `dist/win-unpacked/`).
-
----
-
-## 7. Known Limitations (Phase 1)
-
-1. **Power Controls Disabled by Design**: System Shutdown and Restart buttons are intentionally disabled in Phase 1 for safety.
-2. **OS Scope**: Lock Workstation (`user32.dll,LockWorkStation`) and `notepad.exe` launch are tailored specifically for Windows (`win32`).
-3. **Reserved OS Shortcuts**: Windows-reserved combinations (such as `Win + L` or `Ctrl + Alt + Del`) cannot be overridden by Electron `globalShortcut`; if attempted, the application gracefully notifies the user and restores the previous working shortcut.
+Output artifacts are generated in `release/`:
+- `release/Desktop Assistant Bot Setup 1.0.0.exe` (Windows NSIS installer)
+- `release/win-unpacked/Desktop Assistant Bot.exe` (Unpacked production executable)
