@@ -1,0 +1,66 @@
+{
+  "name": "desktop-assistant-bot",
+  "version": "1.0.0",
+  "description": "Offline-first personal Windows Desktop Assistant Bot (Phase 1)",
+  "main": "dist/electron/main.js",
+  "author": "Desktop Assistant Bot Engineering",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "generate-icons": "node scripts/generate-icons.js",
+    "copy-assets": "node scripts/copy-assets.js",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:renderer": "tsc -p tsconfig.renderer.json",
+    "build": "node scripts/ensure-native.js && npm run generate-icons && npm run build:main && npm run build:renderer && npm run copy-assets",
+    "start": "npm run build && electron .",
+    "test:smoke": "npm run build && electron . --smoke-test",
+    "postinstall": "node scripts/ensure-native.js",
+    "pack": "npm run build && electron-builder --dir -c.npmRebuild=false",
+    "dist": "npm run build && electron-builder --win nsis -c.npmRebuild=false"
+  },
+  "build": {
+    "appId": "com.local.desktopassistantbot",
+    "productName": "Desktop Assistant Bot",
+    "directories": {
+      "output": "release"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**"
+    ],
+    "files": [
+      "dist/**/*",
+      "assets/**/*",
+      "database/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icons/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Desktop Assistant Bot"
+    }
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.10.2",
+    "electron": "33.3.1",
+    "electron-builder": "^25.1.8",
+    "typescript": "^5.7.2"
+  }
+}
